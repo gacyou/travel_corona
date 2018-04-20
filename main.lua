@@ -11,12 +11,10 @@ display.setDefault( "background", 245/255, 245/255, 245/255)
 local widget = require("widget")
 local composer = require("composer")
 local mainTabBar = require("mainTabBar")
-
-local ox, oy = math.abs(display.screenOriginX), math.abs(display.screenOriginY)
-local cx, cy = display.contentCenterX, display.contentCenterY
-local screenW, screenH = display.contentWidth, display.contentHeight
+local backExit = require("backExit")
 
 widget.setTheme("widget_theme_ios")
+backExit:backExit()
 mainTabBar:tabBarCreate()
 --mainTabBar:onHomePageView()
 --mainTabBar:onHotSpotView()

@@ -30,10 +30,8 @@ local vBlankPad = math.ceil(25*hRate)
 local usedPoint = 10000
 local categoryGroup
 
--- function Zone Start
-local function ceil( value )
-	return math.ceil(value)
-end
+local ceil = math.ceil
+local floor = math.floor
 
 -- 按鈕的監聽事件
 local function onBtnListener( event )
@@ -46,10 +44,8 @@ local function onBtnListener( event )
 	end
 end
 
--- function Zone End
 function scene:create( event )
 	local sceneGroup = self.view
-	-- Called when the scene's view does not exist.
 	local background = display.newRect(cx,cy+oy,screenW+ox+ox,screenH+oy+oy)
 	sceneGroup:insert(background)
 	background:setFillColor(unpack(backgroundColor))
@@ -304,7 +300,6 @@ function scene:create( event )
 		categoryAppointmentInfoBtn.anchorY = 1
 		categoryAppointmentInfoBtn.y = categoryBaseWhite.contentHeight-ceil(35*hRate)+pad
 	end
-	print(categoryBaseWhite.y)
 
 	local buyerInfoBase = display.newRect(0,0,ox+screenW+ox,ceil(415*hRate))
 	categoryView:insert(buyerInfoBase)
@@ -378,9 +373,7 @@ function scene:show( event )
 	local sceneGroup = self.view
 	local phase = event.phase
 	if phase == "will" then
-		-- Called when the scene is still off screen and is about to move on screen
 	elseif phase == "did" then
-		-- Called when the scene is now on screen
 	end	
 end
 
@@ -388,21 +381,12 @@ function scene:hide( event )
 	local sceneGroup = self.view
 	local phase = event.phase
 	if event.phase == "will" then
-		-- Called when the scene is on screen and is about to move off screen
-		--
-		-- INSERT code here to pause the scene
-		-- e.g. stop timers, stop animation, unload sounds, etc.)
 	elseif phase == "did" then
-		-- Called when the scene is now off screen
 	end
 end
 
 function scene:destroy( event )
 	local sceneGroup = self.view
-	-- Called prior to the removal of scene's "view" (sceneGroup)
-	-- 
-	-- INSERT code here to cleanup the scene
-	-- e.g. remove display objects, remove touch listeners, save state, etc.
 end
 
 ---------------------------------------------------------------------------------

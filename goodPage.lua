@@ -3,11 +3,14 @@
 -- goodPage.lua
 --
 -----------------------------------------------------------------------------------------
-local widget = require ("widget")
 local composer = require ("composer")
+local widget = require ("widget")
 local mainTabBar = require ("mainTabBar")
 local getFont = require("setFont")
 local json = require("json")
+local myutf8 = require("myutf8")
+local optionsTable = require("optionsTable")
+
 local scene = composer.newScene()
 
 local wordColor = { 99/255, 99/255, 99/255 }
@@ -26,6 +29,7 @@ local hRate = screenH/1920
 
 local mainTabBarHeight = composer.getVariable("mainTabBarHeight")
 local mainTabBarY = composer.getVariable("mainTabBarY")
+
 local isLogin
 if (composer.getVariable("isLogin")) then 
 	isLogin = composer.getVariable("isLogin")
@@ -35,6 +39,16 @@ end
 
 local ceil = math.ceil
 local floor = math.floor
+
+local scrollView = {}
+local base = {}
+local shadow = {}
+local btn = {}
+local text = {}
+local line = {}
+local icon = {}
+local arrow = {}
+local setStatus = {}
 
 local function split(str, pat)
 	local t = {}  -- NOTE: use {n = 0} in Lua-5.0
@@ -54,30 +68,32 @@ local function split(str, pat)
 	end
 	return t
 end
+
 -- create()
 function scene:create( event )
 	local sceneGroup = self.view
-
 	mainTabBar.myTabBarHidden()
-	local scrollView = {}
-	local base = {}
-	local shadow = {}
-	local btn = {}
-	local text = {}
-	local line = {}
-	local icon = {}
-	local arrow = {}
-	local setStatus = {}
-
 	local getProductId = event.params.productId
 	local urlGetFileNamePattern = "%a+://%w+%.%w+[%.%w]*%:?%d*[/%w]*/(.+%.%a+)"
-	
+	local coverGroup = display.newGroup()
+	local coverBase = display.newRect( coverGroup, cx, cy, screenW+ox+ox, screenH+oy+oy )
+	coverBase:setFillColor( 0, 0, 0, 0.2 )
+	coverBase:addEventListener("touch", function () return true; end)
+	local coverSpinner = widget.newSpinner({
+		id = "coverSpinner",
+		x = cx,
+		y = cy,
+	})
+	coverGroup:insert(coverSpinner)
+	coverSpinner:scale( 0.6, 0.6 )
+	coverSpinner:start()
+
 	local function networkListener( event )
 		if ( event.isError ) then
 			print( "Network error!")
         else
 			--print ("RESPONSE: "..event.response)
-			local decodedData = (json.decode(event.response))
+			local decodedData = json.decode(event.response)
 			--for k,v in pairs(decodedData) do
 			--	print(k)
 			--end
@@ -352,7 +368,7 @@ function scene:create( event )
 			btn["dropDown"]:addEventListener("touch",dropDownBtnListener)
 		-- 抬頭文字
 			text["title"] = display.newText({
-				text = decodedData["title"],
+				text = myutf8.textToUtf8( decodedData["title"], 12),
 				height = 0,
 				font = getFont.font,
 				fontSize = 14,
@@ -363,10 +379,10 @@ function scene:create( event )
 			text["title"].x = backArrowWhite.x+backArrowWhite.contentWidth+ceil(40*wRate)
 			text["title"].y = backArrowWhite.y
 			text["title"].isVisible = false
-			if (string.len(text["title"].text) > 30) then
-				text["title"].text = text["title"].text:sub(1,30).."..."
-			end
-------------------- 購物按鈕列 -------------------
+			--if (string.len(text["title"].text) > 30) then
+			--	text["title"].text = text["title"].text:sub(1,30).."..."
+			--end
+		------------------- 購物按鈕列 -------------------
 		-- 我的最愛
 			base["buy"] = display.newRect(sceneGroup, cx, mainTabBarY, screenW+ox+ox, mainTabBarHeight)
 			--base["buy"]:setFillColor( 1, 0, 1, 0.3)
@@ -402,17 +418,24 @@ function scene:create( event )
 													backScene = "goodPage",
 												}
 											}
-											composer.gotoScene("login", options)
+											composer.gotoScene("LN_login", options)
 										end
 									end
 								end)
 						else
+							local setPrice
+							if ( decodedData["discountTwd"] ~= 0 ) then
+								setPrice = decodedData["discountTwd"]
+							else
+								setPrice = decodedData["twd"]
+							end
+							print(setPrice)
 							options = {
 								params = {
 									objectId = "N/A",
 									productTitle = decodedData["title"],
 									productId = getProductId,
-									singlePrice = decodedData["twd"],
+									singlePrice = setPrice,
 									productAmount = 1,
 									fromScene = "goodPage",
 									orderDate = os.date("%Y").."/"..os.date("%m").."/"..os.date("%d"),
@@ -442,8 +465,8 @@ function scene:create( event )
 			btn["book"].x = btn["addCart"].x + btn["addCart"].contentWidth + ceil(15*wRate)
 			btn["book"].y = mainTabBarY
 			sceneGroup:insert(btn["book"])
-------------------- backgroundScrollView元件 -------------------
-------------------- 主圖(影音)+標題+副標題 -------------------
+		------------------- backgroundScrollView元件 -------------------
+		------------------- 主圖(影音)+標題+副標題 -------------------
 		-- 放產品圖或是影音的位置
 			local goodsGroup = display.newGroup()
 			scrollView["background"]:insert(goodsGroup)
@@ -453,22 +476,21 @@ function scene:create( event )
 			local function picNetworkListener(event)
 				if ( event.isError ) then
 					print( "Network error! -- Download Failed")
-				else
-					goodsGroup:insert(event.target)
-					event.target.x = base["titleVision"].x
-					event.target.y = base["titleVision"].y
-					event.target.width = base["titleVision"].contentWidth
-					event.target.height = base["titleVision"].contentHeight
+				elseif ( event.phase == "ended" ) then
+					if ( event.target ) then
+						coverGroup.isVisible = false
+						coverSpinner:stop()
+						goodsGroup:insert(event.target)
+						event.target.x = base["titleVision"].x
+						event.target.y = base["titleVision"].y
+						event.target.width = base["titleVision"].contentWidth
+						event.target.height = base["titleVision"].contentHeight
+					end
 				end
 			end
 			local picUrl = decodedData["itemImgs"][1]["url"]
 			local picName = string.match(picUrl,urlGetFileNamePattern)
-			display.loadRemoteImage( 
-				picUrl, 
-				"GET", 
-				picNetworkListener, 
-				picName,
-				system.TemporaryDirectory)
+			display.loadRemoteImage( picUrl, "GET",	picNetworkListener,	picName, system.TemporaryDirectory )
 		-- 商品描述區塊
 		-- 陰影
 			shadow["description"] = display.newImageRect("assets/shadow-4.png", 1079, 1881)
@@ -525,7 +547,7 @@ function scene:create( event )
 			line["goodSeparated"].strokeWidth = 1
 			line["goodSeparated"]:setStrokeColor(unpack(separateLineColor))
 
-------------------- 商品價位區塊 -------------------
+		------------------- 商品價位區塊 -------------------
 		-- 顯示文字-"NT$"
 			text["NT"] = display.newText({
 					text = "NT$",
@@ -589,6 +611,9 @@ function scene:create( event )
 			text["comboPrice"].anchorY = 1
 			text["comboPrice"].x = text["combo"].x+text["combo"].contentWidth
 			text["comboPrice"].y = text["combo"].y
+			if ( decodedData["discountTwd"] == 0 ) then
+				comboPriceGroup.isVisible = false
+			end
 		-- 按鈕-組合價提示
 			btn["comboInfo"] = widget.newButton({
 				id = "comboInfoBtn",
@@ -643,7 +668,7 @@ function scene:create( event )
 			icon["point"].anchorY = 1
 			icon["point"].x = icon["discount"].x-icon["discount"].contentWidth-ceil(30*wRate)
 			icon["point"].y = icon["discount"].y
-------------------- 商品詳細說明區塊 -------------------
+		------------------- 商品詳細說明區塊 -------------------
 		-- 白色區塊
 			base["detail"] = display.newRect( scrollView["background"].contentWidth*0.5, 0, scrollView["background"].contentWidth, math.floor(screenH*0.45))
 			goodsGroup:insert(base["detail"])
@@ -1021,7 +1046,7 @@ function scene:create( event )
 			goodsGroup:insert(base["questionBottom"])
         end
 	end 
-	local url = "http://211.21.114.208/1.0/GetItem/"..getProductId
+	local url = optionsTable.getProductUrl..getProductId
 	network.request( url, "GET", networkListener)
 end
 

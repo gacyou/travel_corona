@@ -3,11 +3,13 @@
 -- orderOptions.lua
 --
 -----------------------------------------------------------------------------------------
-local widget = require ("widget")
 local composer = require ("composer")
+local widget = require ("widget")
 local mainTabBar = require ("mainTabBar")
 local getFont = require("setFont")
 local json = require("json")
+local token = require("token")
+
 local scene = composer.newScene()
 
 local wordColor = { 99/255, 99/255, 99/255 }
@@ -163,7 +165,7 @@ function scene:create( event )
 			end
 			return true
 		end
-		for i=1, #optionText do
+		for i = 1, #optionText do
 			local productOptionBase = display.newRect( sceneGroup, cx, productOptionBaseY, screenW+ox+ox, screenH/16)
 			productOptionBase.anchorY = 0
 			productOptionBase.id = i
@@ -203,7 +205,7 @@ function scene:create( event )
 			productOptionText[1].text = getOrderDate
 			productOptionText[2].text = getAmount
 		end
-	------------------- 按鈕 -------------------
+	------------------- 底部元件 -------------------
 		local bottomBase = display.newRect( sceneGroup, cx, screenH+oy, screenW+ox+ox, screenH/10)
 		bottomBase.anchorY = 1
 		local bottomBaseText = display.newText({
@@ -255,7 +257,10 @@ function scene:create( event )
 			height = bottomBase.contentHeight*0.6,
 			onRelease = function ( event )
 				local accessToken
-				if ( composer.getVariable("accessToken") and composer.getVariable("accessToken") ~= "N/A") then
+				if ( composer.getVariable("accessToken") ) then
+					if ( token.getAccessToken() and token.getAccessToken() ~= composer.getVariable("accessToken") ) then
+						composer.setVariable( "accessToken", token.getAccessToken() )
+					end
 					accessToken = composer.getVariable("accessToken")
 				end
 				local fullDatePattern = "%d+/%d+/%d+"
@@ -267,6 +272,7 @@ function scene:create( event )
 					local headers = {}
 					local body
 					local params = {}
+					local hintGroup = display.newGroup()
 					local hintRoundedRect = widget.newButton({
 						x = cx,
 						y = (screenH+oy+oy)*0.7,
@@ -277,6 +283,7 @@ function scene:create( event )
 						height = screenH/16,
 						cornerRadius = 20,
 					})
+					hintGroup:insert(hintRoundedRect)
 					local hintRoundedRectText = display.newText({
 						text = "",
 						font = getFont.font,
@@ -284,6 +291,12 @@ function scene:create( event )
 						x = hintRoundedRect.x,
 						y = hintRoundedRect.y,
 					})
+					hintGroup:insert(hintRoundedRectText)
+					if ( getFromScene == "goodPage" ) then
+						hintRoundedRectText.text = "已加入購物車"
+					elseif ( getFromScene == "shoppingCart" ) then
+						hintRoundedRectText.text = "更改完成"
+					end
 					if ( getFromScene == "goodPage" ) then
 						headers["Authorization"] = "Bearer "..accessToken
 						headers["Content-Type"] = "application/json"
@@ -295,22 +308,12 @@ function scene:create( event )
 								print( "Network error!")
 							else
 								--print ("RESPONSE: "..event.response)
-								hintRoundedRectText.text = "已加入購物車"
-								timer.performWithDelay( 1700, function ()
-									hintRoundedRectText.alpha = 0.3
-									hintRoundedRect.alpha = 0.3
-								end)
-								timer.performWithDelay( 1800, function ()
-									hintRoundedRectText.alpha = 0.2
-									hintRoundedRect.alpha = 0.2
-								end)
-								timer.performWithDelay( 1900, function ()
-									hintRoundedRectText.alpha = 0.1
-									hintRoundedRect.alpha = 0.1
-								end)
+								composer.gotoScene( "shoppingCart", { time = 200, effect = "fade" } )
+								--hintRoundedRectText.text = "已加入購物車"
+								transition.to( hintGroup, { time = 2000, alpha = 0, transition = easing.inExpo } )
+								--transition.to( hintRoundedRect, { time = 2000, alpha = 0, transition = easing.inExpo } )
 								timer.performWithDelay( 2000, function ()
-									hintRoundedRectText:removeSelf()
-									hintRoundedRect:removeSelf()
+									hintGroup:removeSelf()
 								end)
 							end
 						end
@@ -327,19 +330,9 @@ function scene:create( event )
 								print( "Network error!")
 							else
 								composer.gotoScene( getFromScene, { time = 200, effect = "fade"})
-								hintRoundedRectText.text = "更改完成",
-								timer.performWithDelay( 1700, function ()
-									hintRoundedRectText.alpha = 0.3
-									hintRoundedRect.alpha = 0.3
-								end)
-								timer.performWithDelay( 1800, function ()
-									hintRoundedRectText.alpha = 0.2
-									hintRoundedRect.alpha = 0.2
-								end)
-								timer.performWithDelay( 1900, function ()
-									hintRoundedRectText.alpha = 0.1
-									hintRoundedRect.alpha = 0.1
-								end)
+								--hintRoundedRectText.text = "更改完成",
+								transition.to( hintRoundedRectText, { time = 2000, alpha = 0, transition = easing.inExpo } )
+								transition.to( hintRoundedRect, { time = 2000, alpha = 0, transition = easing.inExpo } )
 								timer.performWithDelay( 2000, function ()
 									hintRoundedRectText:removeSelf()
 									hintRoundedRect:removeSelf()
@@ -441,20 +434,13 @@ function scene:create( event )
 		end
 		productCountScrollView.isVisible = false
 	------------------- 訂購日期選單 -------------------
-	-- 時間參數 --
-		sceneGroup:insert(dateOptionGroup)
-		local weekDays = { "日", "一", "二", "三","四", "五", "六" }
-		local firstDay = os.time({ year = thisYear, month = thisMonth, day = "1"})
-		local finallDay = os.time({ year = thisYear, month = thisMonth, day = daysOfMonth[thisMonth]})
-		local startWeek = os.date("%U",firstDay)
-		local endWeek = os.date("%U",finallDay)
-		local totalWeek = endWeek-startWeek+1
-		local startWeekday = os.date("%w",firstDay)
-		local startDayNum = startWeekday+1
-		local endDayNum = startDayNum+daysOfMonth[thisMonth]-1
 	-- 月曆 --
 	-- 顯示文字-"年"
+		sceneGroup:insert(dateOptionGroup)
 		local dateTitleBase = display.newRect( dateOptionGroup, cx, dateOptionY+1, screenW+ox+ox, screenH/10)
+		dateTitleBase:addEventListener("touch", function ()
+			return true
+		end)
 		dateTitleBase.anchorY = 0
 		local yearText = display.newText({
 			parent = dateOptionGroup,
@@ -465,7 +451,7 @@ function scene:create( event )
 			y = dateTitleBase.y+dateTitleBase.contentHeight*0.3
 		})
 		yearText:setFillColor(unpack(wordColor))	
-		-- 顯示文字-年數字
+	-- 顯示文字-年數字
 		local yearDateText = display.newText({
 			parent = dateOptionGroup,
 			text = thisDate.thisYear,
@@ -499,6 +485,7 @@ function scene:create( event )
 		monthText:setFillColor(unpack(wordColor))
 		monthText.anchorX = 0
 	-- 顯示文字-"日~六"
+		local weekDays = { "日", "一", "二", "三","四", "五", "六" }
 		local monthDaysBaseEdge = floor((screenW+ox+ox)/#weekDays)-1
 		for i=1, #weekDays do
 			local weekDaysText = display.newText({
@@ -514,10 +501,13 @@ function scene:create( event )
 			weekDaysText.x = weekDaysText.x+(monthDaysBaseEdge)*(i-1)
 		end
 	-- 月曆日期監聽事件 --
-		local monthdayText = {}
+		local monthDaysBase, monthdayText = {}, {}
+		local groupNumData = {} -- calendarGroup[groupNumData]對應的月份
+		local yearData, dayData = {}, {}
 		local nowTarget, prevTarget = nil, nil
 		local isCancel = false
 		local function calendarDayListener( event )
+			local getGroupNum = groupNumData[tonumber(monthDateText.text)]
 			local phase = event.phase
 			if ( phase == "began") then
 				if ( isCancel == true ) then
@@ -527,35 +517,35 @@ function scene:create( event )
 				if ( nowTarget == nil and prevTarget == nil ) then
 					nowTarget = event.target
 					nowTarget:setFillColor(unpack(mainColor1))
-					monthdayText[nowTarget.id]:setFillColor(1)
+					monthdayText[getGroupNum][nowTarget.id]:setFillColor(1)
 
 					prevTarget = nowTarget
 				end
 				-- 有物件被選定後的觸碰事件 --
 				if ( nowTarget == nil and prevTarget ~= nil ) then
 					prevTarget:setFillColor(1)
-					monthdayText[prevTarget.id]:setFillColor(unpack(wordColor))
+					monthdayText[getGroupNum][prevTarget.id]:setFillColor(unpack(wordColor))
 
 					nowTarget = event.target
 					nowTarget:setFillColor(unpack(mainColor1))
-					monthdayText[nowTarget.id]:setFillColor(1)
+					monthdayText[getGroupNum][nowTarget.id]:setFillColor(1)
 				end
 			elseif ( phase == "moved" ) then
 				isCancel = true
 				-- 尚未有物件被選定的取消事件 --
 				if ( event.target == nowTarget and event.target == prevTarget ) then
 					event.target:setFillColor(1)
-					monthdayText[event.target.id]:setFillColor(unpack(wordColor))
+					monthdayText[getGroupNum][event.target.id]:setFillColor(unpack(wordColor))
 					prevTarget = nil
 					nowTarget = nil
 				end
 				-- 有物件被選定後的取消事件 --
 				if ( event.target == nowTarget and event.target ~= prevTarget ) then
 					prevTarget:setFillColor(unpack(mainColor1))
-					monthdayText[prevTarget.id]:setFillColor(1)
+					monthdayText[getGroupNum][prevTarget.id]:setFillColor(1)
 
 					event.target:setFillColor(1)
-					monthdayText[event.target.id]:setFillColor(unpack(wordColor))
+					monthdayText[getGroupNum][event.target.id]:setFillColor(unpack(wordColor))
 					nowTarget = nil
 				end
 			elseif ( phase == "ended" and isCancel == false ) then
@@ -564,10 +554,10 @@ function scene:create( event )
 				productOptionArrow[1]:rotate(180)
 				productOptionLine[1]:setStrokeColor(unpack(separateLineColor))
 				productOptionLine[1].strokeWidth = 1
-				if ( tonumber(monthdayText[nowTarget.id].text) < 10 ) then
-					productOptionText[1].text = yearDateText.text.."/"..monthDateText.text.."/".."0"..monthdayText[nowTarget.id].text
+				if ( tonumber(monthdayText[getGroupNum][nowTarget.id].text) < 10 ) then
+					productOptionText[1].text = yearDateText.text.."/"..monthDateText.text.."/".."0"..monthdayText[getGroupNum][nowTarget.id].text
 				else
-					productOptionText[1].text = yearDateText.text.."/"..monthDateText.text.."/"..monthdayText[nowTarget.id].text
+					productOptionText[1].text = yearDateText.text.."/"..monthDateText.text.."/"..monthdayText[getGroupNum][nowTarget.id].text
 				end
 				prevTarget = nowTarget
 				nowTarget = nil
@@ -575,82 +565,171 @@ function scene:create( event )
 			return true
 		end
 	-- 月曆日期元件 --
-		local calendarGroup = display.newGroup()
-		dateOptionGroup:insert(calendarGroup)
+	-- 時間參數 --
+		local firstDay = os.time({ year = thisYear, month = thisMonth, day = "1"})
+		local finallDay = os.time({ year = thisYear, month = thisMonth, day = daysOfMonth[thisMonth]})
+		local startWeek = os.date("%U",firstDay)
+		local endWeek = os.date("%U",finallDay)
+		local totalWeek = endWeek-startWeek+1
+		local startWeekday = os.date("%w",firstDay)
+		local startWeekDayNum = startWeekday+1
+		local endWeekDayNum = startWeekDayNum+daysOfMonth[thisMonth]-1
+	-- 月曆表格參數 --
 		local xBasement, yBasement = 0, 0
 		local bottomLineNum
-		for i = 1, #weekDays*totalWeek do
-			xBasement = ((i-1)%#weekDays)
-			if ( xBasement == 0 ) then
-				if ( i > 1 ) then
-					yBasement = yBasement+1
-				end
-
-				weekBase = display.newRect( calendarGroup, cx, dateTitleBase.y+dateTitleBase.contentHeight+monthDaysBaseEdge*yBasement, screenW+ox+ox, monthDaysBaseEdge)
-				weekBase.anchorY = 0
-			end
-			-- 月曆觸碰事件
-			local monthDaysBase = display.newRect( calendarGroup, -ox+(dateTitleBase.contentWidth-monthDaysBaseEdge*#weekDays)*0.5, dateTitleBase.y+dateTitleBase.contentHeight+monthDaysBaseEdge*yBasement, monthDaysBaseEdge, monthDaysBaseEdge)
-			monthDaysBase.anchorX = 0
-			monthDaysBase.anchorY = 0
-			monthDaysBase.x = monthDaysBase.x+monthDaysBase.contentWidth*xBasement
-			monthDaysBase.id = i
-			-- 月曆顯示日期
-			monthdayText[i] = display.newText({
-				parent = calendarGroup,
-				text = "",
-				font = getFont.font,
-				fontSize = 10,
-				x = monthDaysBase.x+monthDaysBase.contentWidth*0.5,
-				y = monthDaysBase.y+monthDaysBase.contentHeight*0.5,
-			})
-			if ( i >= startDayNum and i <= endDayNum) then
-				monthdayText[i].text = i-startDayNum+1
-				if ( tonumber(yearDateText.text) == tonumber(thisDate.thisYear) and tonumber(monthDateText.text) == tonumber(thisDate.thisMonth) and tonumber(monthdayText[i].text) < tonumber(thisDate.thisDay) ) then
-					monthdayText[i]:setFillColor(unpack(separateLineColor))
-				else
-					monthdayText[i]:setFillColor(unpack(wordColor))
-					monthDaysBase:addEventListener("touch", calendarDayListener)
-				end
+		local limitedAddedMonth = 6
+		local calendarGroup = {}
+		local getYear = thisYear
+		local getMonth = thisMonth
+	-- 月曆月份 --
+		for j = 1, limitedAddedMonth+1 do
+			monthdayText[j] = {}
+			monthDaysBase[j] = {}
+			yBasement = 0
+			calendarGroup[j] = display.newGroup()
+			dateOptionGroup:insert(calendarGroup[j])
+			if ( getYear%400 == 0 or ( getYear%4 == 0 and getYear%100 ~= 0 ) ) then 
+				febDays = 29
 			else
-				monthdayText[i].text = ""
+				febDays = 28
 			end
-			local verticalLine = display.newLine ( calendarGroup, monthDaysBase.x, monthDaysBase.y, monthDaysBase.x, monthDaysBase.y+monthDaysBase.contentHeight)
-			verticalLine:setStrokeColor(unpack(separateLineColor))
-			verticalLine.strokeWidth = 1
-			if ( xBasement == 6 ) then
-				local verticalLineBottom = display.newLine ( calendarGroup, monthDaysBase.x+monthDaysBaseEdge, monthDaysBase.y, monthDaysBase.x+monthDaysBaseEdge, monthDaysBase.y+monthDaysBase.contentHeight)
-				verticalLineBottom:setStrokeColor(unpack(separateLineColor))
-				verticalLineBottom.strokeWidth = 1
-
-				local horizontalLine = display.newLine ( calendarGroup, -ox+(dateTitleBase.contentWidth-monthDaysBaseEdge*#weekDays)*0.5, monthDaysBase.y, screenW+ox-(dateTitleBase.contentWidth-monthDaysBaseEdge*#weekDays)*0.5, monthDaysBase.y)
-				horizontalLine:setStrokeColor(unpack(separateLineColor))
-				horizontalLine.strokeWidth = 1
-				if ( totalWeek-yBasement == 1 ) then
-					local horizontalLineBottom = display.newLine ( calendarGroup, -ox+(dateTitleBase.contentWidth-monthDaysBaseEdge*#weekDays)*0.5, monthDaysBase.y+monthDaysBase.contentHeight, screenW+ox-(dateTitleBase.contentWidth-monthDaysBaseEdge*#weekDays)*0.5, monthDaysBase.y+monthDaysBase.contentHeight)
-					horizontalLineBottom:setStrokeColor(unpack(separateLineColor))
-					horizontalLineBottom.strokeWidth = 1
-					bottomLineNum = calendarGroup.numChildren
+			local daysOfCalendarMonth = { 31, febDays, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+			if ( j > 1 ) then
+				getMonth = tonumber(getMonth)+1
+				if ( tonumber(getMonth) < 10 ) then
+					getMonth = "0"..tonumber(getMonth)
+				elseif ( tonumber(getMonth) == 13 ) then
+					getMonth = "01"
+					getYear = tonumber(getYear)+1
 				end
+				calendarGroup[j].x = calendarGroup[j].x+(screenW+ox+ox)
+			else
+				calendarGroup[j].x = calendarGroup[j].x
+			end
+			-- 反查表
+			yearData[tonumber(getMonth)] = getYear -- 記錄該月對應的年份
+			groupNumData[tonumber(getMonth)] = j -- 記錄該月對應的calendarGroup編號
+			dayData[j] = {} -- 記錄該groupNum對應的月份的日期編號
+			
+			firstDay = os.time({ year = getYear, month = getMonth, day = "1" })
+			finallDay = os.time({ year = getYear, month = getMonth, day = daysOfCalendarMonth[tonumber(getMonth)] })
+			startWeek = os.date("%U",firstDay)
+			endWeek = os.date("%U",finallDay)
+			totalWeek = endWeek-startWeek+1
+			startWeekday = os.date("%w",firstDay)
+			startWeekDayNum = startWeekday+1
+			endWeekDayNum = startWeekDayNum+daysOfCalendarMonth[tonumber(getMonth)]-1
+			-- 該月份的天數
+			for i = 1, #weekDays*totalWeek do
+				xBasement = ((i-1)%#weekDays)
+				if ( xBasement == 0 ) then
+					if ( i > 1 ) then
+						yBasement = yBasement+1
+					end
+					weekBase = display.newRect( calendarGroup[j], cx, dateTitleBase.y+dateTitleBase.contentHeight+monthDaysBaseEdge*yBasement, screenW+ox+ox, monthDaysBaseEdge)
+					weekBase.anchorY = 0
+				end
+				-- 月曆觸碰事件
+				monthDaysBase[j][i] = display.newRect( calendarGroup[j], -ox+(dateTitleBase.contentWidth-monthDaysBaseEdge*#weekDays)*0.5, dateTitleBase.y+dateTitleBase.contentHeight+monthDaysBaseEdge*yBasement, monthDaysBaseEdge, monthDaysBaseEdge)
+				monthDaysBase[j][i].anchorX = 0
+				monthDaysBase[j][i].anchorY = 0
+				monthDaysBase[j][i].x = monthDaysBase[j][i].x+monthDaysBase[j][i].contentWidth*xBasement
+				monthDaysBase[j][i].id = i
+				-- 月曆顯示日期
+				monthdayText[j][i] = display.newText({
+					parent = calendarGroup[j],
+					text = "",
+					font = getFont.font,
+					fontSize = 10,
+					x = monthDaysBase[j][i].x+monthDaysBase[j][i].contentWidth*0.5,
+					y = monthDaysBase[j][i].y+monthDaysBase[j][i].contentHeight*0.5,
+				})
+				if ( i >= startWeekDayNum and i <= endWeekDayNum) then
+					monthdayText[j][i].text = i-startWeekDayNum+1
+					dayData[j][(i-startWeekDayNum+1)] = i -- 紀錄某月份該日對應的編號
+					if ( getYear == tonumber(thisDate.thisYear) and getMonth == tonumber(thisDate.thisMonth) and tonumber(monthdayText[j][i].text) < tonumber(thisDate.thisDay) ) then
+						monthdayText[j][i]:setFillColor(unpack(separateLineColor))
+					else
+						monthdayText[j][i]:setFillColor(unpack(wordColor))
+						monthDaysBase[j][i]:addEventListener("touch", calendarDayListener)
+					end
+				else
+					monthdayText[j][i].text = ""
+				end
+
+				-- 月曆線
+				local verticalLine = display.newLine ( calendarGroup[j], monthDaysBase[j][i].x, monthDaysBase[j][i].y, monthDaysBase[j][i].x, monthDaysBase[j][i].y+monthDaysBase[j][i].contentHeight)
+				verticalLine:setStrokeColor(unpack(separateLineColor))
+				verticalLine.strokeWidth = 1
+				if ( xBasement == 6 ) then
+					local verticalLineBottom = display.newLine ( calendarGroup[j], monthDaysBase[j][i].x+monthDaysBaseEdge, monthDaysBase[j][i].y, monthDaysBase[j][i].x+monthDaysBaseEdge, monthDaysBase[j][i].y+monthDaysBase[j][i].contentHeight)
+					verticalLineBottom:setStrokeColor(unpack(separateLineColor))
+					verticalLineBottom.strokeWidth = 1
+
+					local horizontalLine = display.newLine ( calendarGroup[j], -ox+(dateTitleBase.contentWidth-monthDaysBaseEdge*#weekDays)*0.5, monthDaysBase[j][i].y, screenW+ox-(dateTitleBase.contentWidth-monthDaysBaseEdge*#weekDays)*0.5, monthDaysBase[j][i].y)
+					horizontalLine:setStrokeColor(unpack(separateLineColor))
+					horizontalLine.strokeWidth = 1
+					if ( totalWeek-yBasement == 1 ) then
+						local horizontalLineBottom = display.newLine ( calendarGroup[j], -ox+(dateTitleBase.contentWidth-monthDaysBaseEdge*#weekDays)*0.5, monthDaysBase[j][i].y+monthDaysBase[j][i].contentHeight, screenW+ox-(dateTitleBase.contentWidth-monthDaysBaseEdge*#weekDays)*0.5, monthDaysBase[j][i].y+monthDaysBase[j][i].contentHeight)
+						horizontalLineBottom:setStrokeColor(unpack(separateLineColor))
+						horizontalLineBottom.strokeWidth = 1
+						bottomLineNum = calendarGroup[j].numChildren
+					end
+				end
+			end
+			-- 不可選提示區
+			local hintBase = display.newRect( cx, dateTitleBase.y+dateTitleBase.contentHeight+monthDaysBaseEdge*totalWeek, screenW+ox+ox, monthDaysBaseEdge*0.8)
+			calendarGroup[j]:insert( bottomLineNum, hintBase)
+			hintBase.anchorY = 0
+			local circle = display.newCircle ( calendarGroup[j], backArrow.x+backArrow.contentWidth*0.5, hintBase.y+hintBase.contentHeight*0.5, 6)
+			circle:setFillColor(unpack(separateLineColor))
+			local hintText = display.newText({
+				parent = calendarGroup[j],
+				text = "不可選日期",
+				font = getFont.font,
+				fontSize = 12,
+				x = circle.x+circle.contentWidth+ceil(10*wRate),
+				y = circle.y,
+			})
+			hintText:setFillColor(unpack(wordColor))
+			hintText.anchorX = 0
+		end
+	
+		local groupNum
+		local calendarBase = {}
+		local function nextMonth()
+			transition.to( calendarBase.now, { time = 300, x = (screenW+ox+ox)*-1, transition = easing.outExpo } )
+			transition.to( calendarBase.next, { time = 300, x =  0, transition = easing.outExpo } )
+			calendarBase.prev = calendarBase.now
+			calendarBase.now = calendarBase.next
+			
+			if ( groupNum <= #calendarGroup ) then
+				groupNum = groupNum + 1
+			end
+
+			if ( calendarGroup[groupNum+1] ) then
+				calendarBase.next = calendarGroup[groupNum+1]
+				calendarBase["next"].x = (screenW+ox+ox)
 			end
 		end
-		local hintBase = display.newRect( cx, dateTitleBase.y+dateTitleBase.contentHeight+monthDaysBaseEdge*totalWeek, screenW+ox+ox, monthDaysBaseEdge*0.8)
-		calendarGroup:insert( bottomLineNum, hintBase)
-		hintBase.anchorY = 0
-		local circle = display.newCircle ( calendarGroup, backArrow.x+backArrow.contentWidth*0.5, hintBase.y+hintBase.contentHeight*0.5, 6)
-		circle:setFillColor(unpack(separateLineColor))
-		local hintText = display.newText({
-			parent = calendarGroup,
-			text = "不可選日期",
-			font = getFont.font,
-			fontSize = 12,
-			x = circle.x+circle.contentWidth+ceil(10*wRate),
-			y = circle.y,
-		})
-		hintText:setFillColor(unpack(wordColor))
-		hintText.anchorX = 0
+		
+		local function prevMonth()
+			transition.to( calendarBase.now, { time = 300, x = screenW+ox+ox, transition = easing.outExpo } )
+			transition.to( calendarBase.prev, { time = 300, x = 0, transition = easing.outExpo } )
+			calendarBase.next = calendarBase.now
+			calendarBase.now = calendarBase.prev
+
+			if ( groupNum > 1 ) then
+				groupNum = groupNum - 1
+			end
+
+			if ( calendarGroup[groupNum-1] ) then
+				calendarBase.prev = calendarGroup[groupNum-1]
+				calendarBase["prev"].x = (screenW+ox+ox)*-1
+			end
+		end
 	-- 左右箭頭監聽事件
-		local leftArrow, leftArrowBtn, rightArrow, rightArrowBtn 
+		local leftArrow, leftArrowBtn, rightArrow, rightArrowBtn
 		local function dateChangeListener(event)
 			local id = event.target.id
 			if ( id == "rightArrowBtn" ) then
@@ -669,12 +748,16 @@ function scene:create( event )
 						monthDateText.text = eventNextMonth
 						yearDateText.text = eventNextYear
 					end
-					
 					if ( tonumber(monthDateText.text) > tonumber(thisDate.thisMonth) ) then
 						leftArrow.isVisible = true
 						leftArrowBtn.isVisible = true
 					end
+					if ( tonumber(monthDateText.text) == tonumber(thisDate.thisMonth)+limitedAddedMonth and tonumber(yearDateText.text) == tonumber(thisDate.thisYear)) then
+						rightArrow.isVisible = false
+						rightArrowBtn.isVisible = false
+					end
 				end
+				nextMonth()
 			end
 			if ( id == "leftArrowBtn" ) then
 				local eventlastYear
@@ -696,10 +779,16 @@ function scene:create( event )
 						leftArrow.isVisible = false
 						leftArrowBtn.isVisible = false
 					end
+					if ( tonumber(monthDateText.text) < tonumber(thisDate.thisMonth)+limitedAddedMonth and tonumber(yearDateText.text) == tonumber(thisDate.thisYear)) then
+						rightArrow.isVisible = true
+						rightArrowBtn.isVisible = true
+					end
 				end
+				prevMonth()
 			end
 		end
 	-- 按鈕-左右箭頭
+	-- 左箭頭
 		leftArrow = display.newImage( dateOptionGroup, "assets/btn-dropdown.png", yearDateText.x-yearDateText.contentWidth-ceil(40*wRate), dateTitleBase.y+dateTitleBase.contentHeight*0.28)
 		leftArrow:rotate(90)
 		leftArrow.width = leftArrow.width*0.05
@@ -717,7 +806,7 @@ function scene:create( event )
 			onRelease = dateChangeListener,
 		})
 		dateOptionGroup:insert( leftArrowNum, leftArrowBtn)
-		
+	-- 右箭頭
 		rightArrow = display.newImage(dateOptionGroup, "assets/btn-dropdown.png", monthText.x+monthText.contentWidth+ceil(40*wRate), leftArrow.y)
 		rightArrow:rotate(270)
 		rightArrow.width = rightArrow.width*0.05
@@ -740,6 +829,57 @@ function scene:create( event )
 			leftArrowBtn.isVisible = false
 		end
 		dateOptionGroup.isVisible = false
+	-- 月曆再定位 --
+		if ( getFromScene == "goodPage" ) then
+			groupNum = 1
+			calendarBase.prev = nil
+			calendarBase.now = calendarGroup[1]
+			calendarBase.next = calendarGroup[2]
+		elseif ( getFromScene == "shoppingCart" ) then
+			local getDatePattern = "(%d+)/(%d+)/(%d+)"
+			local year,month,day = getOrderDate:match(getDatePattern)
+			groupNum = groupNumData[tonumber(month)]
+			if ( tonumber(year) == tonumber(yearData[tonumber(month)]) ) then
+				local dayId = dayData[groupNum][tonumber(day)]
+				yearDateText.text = year
+				monthDateText.text = month
+				monthDaysBase[groupNum][dayId]:setFillColor(unpack(mainColor1))
+				monthdayText[groupNum][dayId]:setFillColor(1)
+				prevTarget = monthDaysBase[groupNum][dayId]
+			end
+			if ( groupNum == 1 ) then
+				calendarBase.prev = nil
+				calendarBase.now = calendarGroup[groupNum]
+				calendarBase["now"].x = 0
+				calendarBase.next = calendarGroup[groupNum+1]
+				calendarBase["next"].x = (screenW+ox+ox)
+				leftArrow.isVisible = false
+				leftArrowBtn.isVisible = false
+				rightArrow.isVisible = true
+				rightArrowBtn.isVisible = true
+			elseif( groupNum == limitedAddedMonth+1 ) then
+				calendarBase.prev = calendarGroup[groupNum-1]
+				calendarBase["prev"].x = (screenW+ox+ox)*-1
+				calendarBase.now = calendarGroup[groupNum]
+				calendarBase["now"].x = 0
+				calendarBase.next = nil
+				leftArrow.isVisible = true
+				leftArrowBtn.isVisible = true
+				rightArrow.isVisible = false
+				rightArrowBtn.isVisible = false
+			else
+				calendarBase.prev = calendarGroup[groupNum-1]
+				calendarBase["prev"].x = (screenW+ox+ox)*-1
+				calendarBase.now = calendarGroup[groupNum]
+				calendarBase["now"].x = 0
+				calendarBase.next = calendarGroup[groupNum+1]
+				calendarBase["next"].x = (screenW+ox+ox)
+				leftArrow.isVisible = true
+				leftArrowBtn.isVisible = true
+				rightArrow.isVisible = true
+				rightArrowBtn.isVisible = true
+			end
+		end
 end
 
 -- show()
